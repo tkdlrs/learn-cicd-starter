@@ -1,63 +1,65 @@
 package auth
 
 import (
-	"errors"
+	"fmt"
 	"net/http"
-	"reflect"
+	"strings"
 	"testing"
 )
 
 func TestGetAPIKey(t *testing.T) {
 	//
 	type test struct {
-		name         string
-		InputHeaders http.Header
-		wantErr      bool
-		want         error
+		key       string
+		value     string
+		expect    string
+		expectErr string
 	}
 	//
 	tests := []test{
 		{
-			name:    "No included header",
-			wantErr: true,
-			want:    errors.New("no authorization header included"),
+			expectErr: "no authorization header",
 		},
 		{
-			name:    "Bad auth header",
-			wantErr: true,
-			want:    errors.New("malformed authorization header"),
+			key:       "Authorization",
+			expectErr: "no authorization header",
 		},
 		{
-			name:    "Doesn't start with 'ApiKey'",
-			wantErr: true,
-			want:    errors.New("malformed authorization header"),
+			key:       "Authorization",
+			value:     "-",
+			expectErr: "malformed authorization header",
+		},
+		{
+			key:       "Authorization",
+			value:     "Bearer xxxxxx",
+			expectErr: "malformed authorization header",
+		},
+		{
+			key:       "Authorization",
+			value:     "ApiKey xxxxxxX",
+			expect:    "xxxxxx",
+			expectErr: "not expecting an error",
 		},
 	}
 	//
-	if tests[1].InputHeaders == nil {
-		tests[1].InputHeaders = make(http.Header)
-		tests[1].InputHeaders.Add("Content-Type", "application/json")
-		tests[1].InputHeaders.Add("Authorization", "no")
-	}
-	//
-	if tests[2].InputHeaders == nil {
-		tests[2].InputHeaders = make(http.Header)
-		tests[2].InputHeaders.Add("Content-Type", "application/json")
-		tests[2].InputHeaders.Add("Authorization", "this is noise")
-	}
-	//
-	for _, tc := range tests {
-		_, err := GetAPIKey(tc.InputHeaders)
-		if tc.wantErr {
-			if !reflect.DeepEqual(tc.want, err) {
-				t.Fatalf("test: %v, \n expected error of: -%v-, instead got: -%v-", tc.name, tc.want, err)
+	for i, test := range tests {
+		t.Run(fmt.Sprintf("TestGetAPIKey Case #%v:", i), func(t *testing.T) {
+			header := http.Header{}
+			header.Add(test.key, test.value)
+			//
+			output, err := GetAPIKey(header)
+			if err != nil {
+				if strings.Contains(err.Error(), test.expectErr) {
+					return
+				}
+				t.Errorf("Unexpected: TestGetAPIKey:%v\n", err)
+				return
 			}
-		}
-		//  else {
-		// 	if tc.want == got {
-		// 		t.Fatalf("expected value: %v, got: %v", tc.want, got)
-		// 	}
-		// }
-
+			//
+			if output != test.expect {
+				t.Errorf("Unexpected: TestGetAPIKey:%s", output)
+				return
+			}
+		})
 	}
 }
